@@ -5,7 +5,9 @@ const {
   getTimelineByPetId,
 } = require("../controllers/healthLogController");
 
-router.get("/logs/:petId", getLogsByPetId);
-router.get("/timeline/:petId", getTimelineByPetId);
+const { authenticateToken } = require("../middlewares/auth");
+
+router.get("/logs/:petId", authenticateToken, getLogsByPetId);
+router.get("/timeline/:petId", authenticateToken, getTimelineByPetId);
 
 module.exports = router;

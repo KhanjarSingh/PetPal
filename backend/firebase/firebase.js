@@ -3,6 +3,10 @@ const path = require("path");
 
 const serviceAccountPath = process.env.FIREBASE_KEY_PATH;
 
+if (!serviceAccountPath) {
+  throw new Error('FIREBASE_KEY_PATH environment variable is not set');
+}
+
 const serviceAccount = require(path.resolve(serviceAccountPath));
 
 admin.initializeApp({

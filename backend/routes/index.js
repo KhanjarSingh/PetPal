@@ -6,15 +6,19 @@ const { db } = require("../firebase/firebase");
 const { initialController } = require("../controllers/init");
 const { initialMiddleware } = require("../middlewares/init");
 
-// Use the separate pet, task, and healthlog routes
+
 const petRouter = require("./pet");
 const taskRouter = require("./task");
 const healthlogRouter = require("./healthlog");
 const uploadRouter = require("./upload");
+const authRouter = require("./auth");
+const notificationRouter = require("./notifications");
 
+router.use("/auth", authRouter);
 router.use("/pets", petRouter);
 router.use("/tasks", taskRouter);
 router.use("/upload", uploadRouter);
+router.use("/notifications", notificationRouter);
 router.use("/", healthlogRouter);
 
 router.get("/", initialMiddleware, initialController);

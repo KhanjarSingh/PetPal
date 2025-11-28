@@ -1,16 +1,11 @@
 const express = require("express");
 const router = express.Router();
-const {
-  createTask,
-  getDailyTasks,
-  getUpcomingTasks,
-  completeTask,
-} = require("../controllers/taskController");
-const { validateTask } = require("../middlewares/validation");
+const { authenticateToken } = require("../middlewares/auth");
+const { createTask, getDailyTasks, getUpcomingTasks, completeTask } = require("../controllers/taskController");
 
-router.post("/", validateTask, createTask);
-router.get("/daily", getDailyTasks);
-router.get("/upcoming", getUpcomingTasks);
-router.put("/:id/complete", completeTask);
+router.post("/", authenticateToken, createTask);
+router.get("/daily", authenticateToken, getDailyTasks);
+router.get("/upcoming", authenticateToken, getUpcomingTasks);
+router.put("/:id/complete", authenticateToken, completeTask);
 
 module.exports = router;

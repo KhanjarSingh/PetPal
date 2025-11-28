@@ -3,6 +3,13 @@ const { db } = require("../firebase/firebase");
 const getLogsByPetId = async (req, res) => {
     try {
         const { petId } = req.params;
+
+        // Verify pet ownership
+        const petDoc = await db.collection("pets").doc(petId).get();
+        if (!petDoc.exists || petDoc.data().userId !== req.user.uid) {
+            return res.status(403).json({ success: false, error: "Unauthorized access to pet logs" });
+        }
+
         const snapshot = await db
             .collection("healthLogs")
             .where("petId", "==", petId)
@@ -18,6 +25,13 @@ const getLogsByPetId = async (req, res) => {
 const getTimelineByPetId = async (req, res) => {
     try {
         const { petId } = req.params;
+
+        // Verify pet ownership
+        const petDoc = await db.collection("pets").doc(petId).get();
+        if (!petDoc.exists || petDoc.data().userId !== req.user.uid) {
+            return res.status(403).json({ success: false, error: "Unauthorized access to pet timeline" });
+        }
+
         const snapshot = await db
             .collection("healthLogs")
             .where("petId", "==", petId)
