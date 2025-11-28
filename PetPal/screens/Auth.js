@@ -1,4 +1,6 @@
 import React, { useState, useContext } from "react";
+import { Platform } from "react-native";
+import { API_URL as ENV_API_URL } from "@env";
 import {
   View,
   Text,
@@ -7,10 +9,9 @@ import {
   StyleSheet,
   SafeAreaView,
   KeyboardAvoidingView,
-  Platform,
   Alert,
   ActivityIndicator,
-} from "react-native"
+} from "react-native";
 
 export default function Auth({ onLoginSuccess }) {
   const [isLogin, setIsLogin] = useState(true);
@@ -18,24 +19,30 @@ export default function Auth({ onLoginSuccess }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const API_URL ="http://localhost:3000"; 
+  let API_URL = ENV_API_URL;
+  if (!API_URL) {
+    API_URL =
+      Platform.OS === "android"
+        ? "http://10.0.2.2:3000"
+        : "http://localhost:3000";
+  }
 
   const handleSignUp = async () => {
     if (isLoading) return;
     setIsLoading(true);
     console.log("Attempting to sign up with:", { fullName, email });
     try {
-      const response = await fetch(`${API_URL}/signup`, {
+      const response = await fetch(`${API_URL}/api/auth/register`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ fullName, email, password }),
+        body: JSON.stringify({ name: fullName, email, password }),
       });
       console.log("Sign up response status:", response.status);
       const data = await response.json();
       console.log("Sign up response data:", data);
       if (response.ok) {
         Alert.alert("Success", data.message);
-        setIsLogin(true); 
+        setIsLogin(true);
       } else {
         Alert.alert("Error", data.message);
       }
@@ -52,7 +59,7 @@ export default function Auth({ onLoginSuccess }) {
     setIsLoading(true);
     console.log("Attempting to log in with:", { email });
     try {
-      const response = await fetch(`${API_URL}/login`, {
+      const response = await fetch(`${API_URL}/api/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password }),
@@ -130,7 +137,9 @@ export default function Auth({ onLoginSuccess }) {
               {isLoading ? (
                 <ActivityIndicator color="white" />
               ) : (
-                <Text style={styles.buttonText}>{isLogin ? "Login" : "Sign Up"}</Text>
+                <Text style={styles.buttonText}>
+                  {isLogin ? "Login" : "Sign Up"}
+                </Text>
               )}
             </TouchableOpacity>
 
@@ -138,10 +147,10 @@ export default function Auth({ onLoginSuccess }) {
               {isLogin ? "Don't have an account?" : "Already have an account?"}
               <Text
                 style={styles.toggleButton}
-                onPress={toggleForm}
-                disabled={isLoading}
+                onPress={isLoading ? undefined : toggleForm}
               >
-                {" "}{isLogin ? "Sign Up" : "Login"}
+                {" "}
+                {isLogin ? "Sign Up" : "Login"}
               </Text>
             </Text>
           </View>
@@ -153,14 +162,59 @@ export default function Auth({ onLoginSuccess }) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#F3F4F6" },
-  keyboardAvoidingView: { flex: 1, justifyContent: "center", alignItems: "center", padding: 16 },
-  card: { backgroundColor: "white", borderRadius: 16, padding: 24, width: "100%", maxWidth: 400, shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 8, elevation: 5 },
+  keyboardAvoidingView: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 16,
+  },
+  card: {
+    backgroundColor: "white",
+    borderRadius: 16,
+    padding: 24,
+    width: "100%",
+    maxWidth: 400,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 5,
+  },
   cardContent: {},
-  title: { fontSize: 24, fontWeight: "bold", textAlign: "center", color: "#1D4ED8", marginBottom: 24 },
-  input: { backgroundColor: "#F9FAFB", padding: 12, borderRadius: 12, marginBottom: 16, fontSize: 16, borderWidth: 1, borderColor: '#E5E7EB' },
-  button: { backgroundColor: "#2563EB", padding: 12, borderRadius: 12, marginTop: 8 },
+  title: {
+    fontSize: 24,
+    fontWeight: "bold",
+    textAlign: "center",
+    color: "#1D4ED8",
+    marginBottom: 24,
+  },
+  input: {
+    backgroundColor: "#F9FAFB",
+    padding: 12,
+    borderRadius: 12,
+    marginBottom: 16,
+    fontSize: 16,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+  },
+  button: {
+    backgroundColor: "#2563EB",
+    padding: 12,
+    borderRadius: 12,
+    marginTop: 8,
+  },
   buttonDisabled: { backgroundColor: "#A5B4FC" },
-  buttonText: { color: "white", fontSize: 18, fontWeight: "bold", textAlign: "center" },
-  toggleText: { textAlign: "center", fontSize: 14, marginTop: 16, color: '#6B7280' },
+  buttonText: {
+    color: "white",
+    fontSize: 18,
+    fontWeight: "bold",
+    textAlign: "center",
+  },
+  toggleText: {
+    textAlign: "center",
+    fontSize: 14,
+    marginTop: 16,
+    color: "#6B7280",
+  },
   toggleButton: { color: "#1D4ED8", fontWeight: "600" },
 });

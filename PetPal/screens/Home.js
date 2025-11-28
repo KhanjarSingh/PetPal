@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import {
   View,
   Text,
@@ -6,58 +6,81 @@ import {
   FlatList,
   Image,
   TouchableOpacity,
+  ActivityIndicator,
 } from "react-native";
 
-const PETS = [
-  {
-    id: "1",
-    name: "Luna",
-    species: "Dog",
-    breed: "Labrador Retriever",
-    ageYears: 3,
-    photoUrl: "https://images.pexels.com/photos/1108099/pexels-photo-1108099.jpeg",
-    vet: {
-      name: "Dr. Sharma",
-      phone: "+91 98765 43210",
-    },
-    upcomingTasks: [
-      { id: "t1", title: "Vaccination booster", time: "Today • 5:00 PM" },
-      { id: "t2", title: "Evening walk", time: "Today • 7:30 PM" },
-    ],
-  },
-  {
-    id: "2",
-    name: "Milo",
-    species: "Cat",
-    breed: "Persian",
-    ageYears: 2,
-    photoUrl: "https://images.pexels.com/photos/1170986/pexels-photo-1170986.jpeg",
-    vet: {
-      name: "Dr. Patel",
-      phone: "+91 91234 56789",
-    },
-    upcomingTasks: [
-      { id: "t3", title: "Deworming tablet", time: "Tomorrow • 10:00 AM" },
-    ],
-  },
-  {
-    id: "3",
-    name: "Coco",
-    species: "Bird",
-    breed: "Cockatiel",
-    ageYears: 1,
-    photoUrl: "https://images.pexels.com/photos/45851/bird-parrot-colorful-macaw-45851.jpeg",
-    vet: {
-      name: "Dr. Rao",
-      phone: "+91 99887 66554",
-    },
-    upcomingTasks: [],
-  },
-];
+import { PETS_API_URL, TASKS_API_URL } from "../config";
 
 const HomeScreen = () => {
+  const [pets, setPets] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    const fetchPetsAndTasks = async () => {
+      try {
+        // Fetch pets
+        const petsRes = await fetch(PETS_API_URL);
+        if (!petsRes.ok) throw new Error("Failed to fetch pets");
+        const petsData = await petsRes.json();
+        // If backend returns { pets: [...] }
+        const petsArr = Array.isArray(petsData)
+          ? petsData
+          : petsData.pets || [];
+
+        // Fetch upcoming tasks
+        const tasksRes = await fetch(TASKS_API_URL);
+        if (!tasksRes.ok) throw new Error("Failed to fetch tasks");
+        const tasksData = await tasksRes.json();
+        // If backend returns { tasks: [...] }
+        const tasksArr = Array.isArray(tasksData)
+          ? tasksData
+          : tasksData.tasks || [];
+
+        // Group tasks by petId
+        const tasksByPet = {};
+        tasksArr.forEach((task) => {
+          if (!tasksByPet[task.petId]) tasksByPet[task.petId] = [];
+          tasksByPet[task.petId].push(task);
+        });
+
+        // Attach upcomingTasks to each pet (sorted by dueDate)
+        const petsWithTasks = petsArr.map((pet) => ({
+          ...pet,
+          upcomingTasks: (tasksByPet[pet.id] || []).sort((a, b) => {
+            const aDate = a.dueDate?._seconds
+              ? a.dueDate._seconds
+              : new Date(a.dueDate).getTime() / 1000;
+            const bDate = b.dueDate?._seconds
+              ? b.dueDate._seconds
+              : new Date(b.dueDate).getTime() / 1000;
+            return aDate - bDate;
+          }),
+        }));
+        setPets(petsWithTasks);
+      } catch (err) {
+        setError(err.message || "Error fetching pets or tasks");
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchPetsAndTasks();
+  }, []);
+
   const renderPetCard = ({ item }) => {
     const nextTask = item.upcomingTasks?.[0];
+    // Format time for display
+    let nextTaskTime = null;
+    if (nextTask) {
+      if (nextTask.dueDate?._seconds) {
+        const date = new Date(nextTask.dueDate._seconds * 1000);
+        nextTaskTime = date.toLocaleString();
+      } else if (nextTask.dueDate) {
+        nextTaskTime = new Date(nextTask.dueDate).toLocaleString();
+      } else if (nextTask.time) {
+        nextTaskTime = nextTask.time;
+      }
+    }
 
     return (
       <View style={styles.card}>
@@ -65,8 +88,10 @@ const HomeScreen = () => {
           {nextTask ? (
             <>
               <Text style={styles.taskLabel}>Next Task</Text>
-              <Text style={styles.taskTitle}>{nextTask.title}</Text>
-              <Text style={styles.taskTime}>{nextTask.time}</Text>
+              <Text style={styles.taskTitle}>
+                {nextTask.title || nextTask.type}
+              </Text>
+              <Text style={styles.taskTime}>{nextTaskTime}</Text>
             </>
           ) : (
             <Text style={styles.noTaskText}>No upcoming tasks</Text>
@@ -75,10 +100,7 @@ const HomeScreen = () => {
 
         {/* Content row: image + details */}
         <View style={styles.cardContent}>
-          <Image
-            source={{ uri: item.photoUrl }}
-            style={styles.petImage}
-          />
+          <Image source={{ uri: item.photoUrl }} style={styles.petImage} />
 
           <View style={styles.detailsContainer}>
             <Text style={styles.petName}>{item.name}</Text>
@@ -89,8 +111,8 @@ const HomeScreen = () => {
 
             <View style={styles.vetContainer}>
               <Text style={styles.vetLabel}>Vet</Text>
-              <Text style={styles.vetText}>{item.vet.name}</Text>
-              <Text style={styles.vetText}>{item.vet.phone}</Text>
+              <Text style={styles.vetText}>{item.vet?.name}</Text>
+              <Text style={styles.vetText}>{item.vet?.phone}</Text>
             </View>
           </View>
         </View>
@@ -119,13 +141,25 @@ const HomeScreen = () => {
           <Text style={styles.addPetText}>+ Add Pet</Text>
         </TouchableOpacity>
       </View>
-      <FlatList
-        data={PETS}
-        keyExtractor={(item) => item.id}
-        renderItem={renderPetCard}
-        contentContainerStyle={styles.listContent}
-        showsVerticalScrollIndicator={false}
-      />
+      {loading ? (
+        <ActivityIndicator
+          size="large"
+          color="#4F46E5"
+          style={{ marginTop: 40 }}
+        />
+      ) : error ? (
+        <Text style={{ color: "red", textAlign: "center", marginTop: 40 }}>
+          {error}
+        </Text>
+      ) : (
+        <FlatList
+          data={pets}
+          keyExtractor={(item) => item.id?.toString()}
+          renderItem={renderPetCard}
+          contentContainerStyle={styles.listContent}
+          showsVerticalScrollIndicator={false}
+        />
+      )}
     </View>
   );
 };
@@ -176,8 +210,8 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     marginBottom: 16,
     overflow: "hidden",
-    elevation: 3, 
-    shadowColor: "#000", 
+    elevation: 3,
+    shadowColor: "#000",
     shadowOpacity: 0.08,
     shadowRadius: 8,
     shadowOffset: { width: 0, height: 4 },
