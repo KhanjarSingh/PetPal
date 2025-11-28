@@ -1,53 +1,16 @@
 const express = require("express");
 const router = express.Router();
-const {db} = require("../firebase/firebase");
+const {
+  createPet,
+  getAllPets,
+  getPetById,
+  updatePet,
+} = require("../controllers/petController");
+const { validatePet } = require("../middlewares/validation");
 
-router.post("/", async (req, res) => {
-  try {
-    const pet = req.body;
-    if (!pet.id) {
-      return res
-        .status(400)
-        .json({ success: false, error: "Pet 'id' is required" });
-    }
-    await db.collection("pets").doc(pet.id).set(pet);
-    res.status(201).json({ success: true, message: "Pet created", pet });
-  } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
-  }
-});
-
-router.get("/", async (req, res) => {
-  try {
-    const snapshot = await db.collection("pets").get();
-    const pets = snapshot.docs.map((doc) => doc.data());
-    res.json({ success: true, pets });
-  } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
-  }
-});
-
-router.get("/:id", async (req, res) => {
-  try {
-    const doc = await db.collection("pets").doc(req.params.id).get();
-    if (!doc.exists) {
-      return res.status(404).json({ success: false, error: "Pet not found" });
-    }
-    res.json({ success: true, pet: doc.data() });
-  } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
-  }
-});
-
-router.put("/:id", async (req, res) => {
-  try {
-    const petUpdates = req.body;
-    await db.collection("pets").doc(req.params.id).update(petUpdates);
-    const updatedDoc = await db.collection("pets").doc(req.params.id).get();
-    res.json({ success: true, pet: updatedDoc.data() });
-  } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
-  }
-});
+router.post("/", validatePet, createPet);
+router.get("/", getAllPets);
+router.get("/:id", getPetById);
+router.put("/:id", updatePet);
 
 module.exports = router;
