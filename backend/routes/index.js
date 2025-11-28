@@ -1,7 +1,7 @@
 const express = require("express");
 const router = express.Router();
 
-const {db} = require("../firebase/firebase");
+const { db } = require("../firebase/firebase");
 
 const { initialController } = require("../controllers/init");
 const { initialMiddleware } = require("../middlewares/init");
@@ -10,9 +10,11 @@ const { initialMiddleware } = require("../middlewares/init");
 const petRouter = require("./pet");
 const taskRouter = require("./task");
 const healthlogRouter = require("./healthlog");
+const uploadRouter = require("./upload");
 
 router.use("/pets", petRouter);
 router.use("/tasks", taskRouter);
+router.use("/upload", uploadRouter);
 router.use("/", healthlogRouter);
 
 router.get("/", initialMiddleware, initialController);
