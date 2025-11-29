@@ -15,6 +15,7 @@ import { PETS_API_URL, TASKS_API_URL } from "../config";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import AddTask from "../Components/AddTask";
 import AddPet from "../Components/Addpet";
+import PetLogs from "./PetLogs";
 
 const HomeScreen = () => {
   const [pets, setPets] = useState([]);
@@ -22,7 +23,9 @@ const HomeScreen = () => {
   const [error, setError] = useState(null);
   const [showAddPetModal, setShowAddPetModal] = useState(false);
   const [showAddTaskModal, setShowAddTaskModal] = useState(false);
+  const [showLogModal, setShowLogModal] = useState(false);
   const [selectedPetForTask, setSelectedPetForTask] = useState(null);
+  const [selectedPetForLog, setSelectedPetForLog] = useState(null);
 
 
   const fetchPetsAndTasks = async () => {
@@ -149,9 +152,14 @@ const HomeScreen = () => {
           </View>
         </View>
 
-        {/* Actions */}
         <View style={styles.actionsRow}>
-          <TouchableOpacity style={styles.secondaryButton}>
+          <TouchableOpacity
+            style={styles.secondaryButton}
+            onPress={() => {
+              setSelectedPetForLog(item);
+              setShowLogModal(true);
+            }}
+          >
             <Text style={styles.secondaryButtonText}>View Log</Text>
           </TouchableOpacity>
           <TouchableOpacity
@@ -266,6 +274,20 @@ const HomeScreen = () => {
             </ScrollView>
           </View>
         </View>
+      </Modal>
+      <Modal
+        visible={showLogModal}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setShowLogModal(false)}
+      >
+        {selectedPetForLog && (
+          <PetLogs
+            petId={selectedPetForLog.id}
+            petName={selectedPetForLog.name}
+            onClose={() => setShowLogModal(false)}
+          />
+        )}
       </Modal>
     </View>
   );

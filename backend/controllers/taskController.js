@@ -122,8 +122,25 @@ const completeTask = async (req, res) => {
         }
 
         const updatedDoc = await taskRef.get();
+
+        try {
+            const healthLog = {
+                petId: taskData.petId,
+                userId: req.user.uid,
+                type: taskData.type || taskData.title || "Task Completed",
+                description: note || `Completed task: ${taskData.type || taskData.title}`,
+                date: doneAt,
+                vetName: "",
+            };
+            await db.collection("healthLogs").add(healthLog);
+            console.log("Health log created for task:", id);
+        } catch (logErr) {
+            console.error("Error creating health log:", logErr);
+        }
+
         res.json({ success: true, task: updatedDoc.data() });
     } catch (err) {
+        console.error("Error in completeTask:", err);
         res.status(500).json({ success: false, error: err.message });
     }
 };

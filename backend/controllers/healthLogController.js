@@ -15,9 +15,11 @@ const getLogsByPetId = async (req, res) => {
             .where("petId", "==", petId)
             .orderBy("date", "desc")
             .get();
-        const logs = snapshot.docs.map((doc) => doc.data());
+        const logs = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+        console.log(`Fetched ${logs.length} logs for pet ${petId}`);
         res.json({ success: true, logs });
     } catch (err) {
+        console.error("Error in getLogsByPetId:", err);
         res.status(500).json({ success: false, error: err.message });
     }
 };

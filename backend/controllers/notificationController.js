@@ -23,7 +23,7 @@ const registerFCMToken = async (req, res) => {
 const scheduleReminder = async (req, res) => {
   try {
     const { taskId, reminderTime, message } = req.body;
-    
+
     const reminder = {
       id: `reminder_${Date.now()}`,
       taskId,
@@ -35,7 +35,7 @@ const scheduleReminder = async (req, res) => {
     };
 
     await db.collection('reminders').doc(reminder.id).set(reminder);
-    
+
     res.json({ success: true, message: 'Reminder scheduled', reminder });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
@@ -49,7 +49,7 @@ const getUserReminders = async (req, res) => {
       .where('sent', '==', false)
       .orderBy('reminderTime', 'asc')
       .get();
-    
+
     const reminders = snapshot.docs.map(doc => doc.data());
     res.json({ success: true, reminders });
   } catch (error) {
@@ -63,7 +63,7 @@ const sendPushNotification = async (userId, title, body) => {
     if (!tokenDoc.exists) return;
 
     const { fcmToken } = tokenDoc.data();
-    
+
     const message = {
       notification: { title, body },
       token: fcmToken
@@ -81,18 +81,20 @@ cron.schedule('* * * * *', async () => {
     const now = admin.firestore.Timestamp.now();
     const snapshot = await db.collection('reminders')
       .where('sent', '==', false)
-      .where('reminderTime', '<=', now)
       .get();
 
     for (const doc of snapshot.docs) {
       const reminder = doc.data();
-      await sendPushNotification(
-        reminder.userId,
-        'PetPal Reminder',
-        reminder.message
-      );
-      
-      await db.collection('reminders').doc(doc.id).update({ sent: true });
+
+      if (reminder.reminderTime.toDate() <= new Date()) {
+        await sendPushNotification(
+          reminder.userId,
+          'PetPal Reminder',
+          reminder.message
+        );
+
+        await db.collection('reminders').doc(doc.id).update({ sent: true });
+      }
     }
   } catch (error) {
     console.error('Error in reminder cron job:', error);
