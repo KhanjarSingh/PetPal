@@ -8,6 +8,7 @@ import Profile from "../screens/Profile";
 const Tab = createBottomTabNavigator();
 
 export default function TabNavigator({ user }) {
+  console.log("TabNavigator rendering");
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({

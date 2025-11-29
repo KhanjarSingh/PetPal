@@ -64,6 +64,7 @@ const getUpcomingTasks = async (req, res) => {
         const tasks = snapshot.docs.map((doc) => doc.data());
         res.json({ success: true, tasks });
     } catch (err) {
+        console.error("Error in getUpcomingTasks:", err);
         res.status(500).json({ success: false, error: err.message });
     }
 };

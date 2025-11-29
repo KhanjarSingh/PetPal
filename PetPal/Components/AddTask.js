@@ -12,7 +12,9 @@ import {
 } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { Picker } from '@react-native-picker/picker';
-// DUMMY_PETS removed, will fetch real pets
+
+export default function AddTask({ onTaskAdded }) {
+
 
   const [title, setTitle] = useState('');
   const [selectedPet, setSelectedPet] = useState('');
@@ -132,6 +134,7 @@ import { Picker } from '@react-native-picker/picker';
     </View>
   );
 }
+
 
 const styles = StyleSheet.create({
   container: {

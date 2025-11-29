@@ -1,6 +1,6 @@
-import React, { useState, useContext } from "react";
+import React, { useState } from "react";
 import { Platform } from "react-native";
-import { API_BASE_URL } from "../config";
+import { BASE_URL } from "../config";
 import {
   View,
   Text,
@@ -12,6 +12,7 @@ import {
   Alert,
   ActivityIndicator,
 } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 export default function Auth({ onLoginSuccess }) {
   const [isLogin, setIsLogin] = useState(true);
@@ -19,7 +20,15 @@ export default function Auth({ onLoginSuccess }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const API_URL = API_BASE_URL;
+  const API_URL = BASE_URL;
+
+  const isMounted = React.useRef(true);
+
+  React.useEffect(() => {
+    return () => {
+      isMounted.current = false;
+    };
+  }, []);
 
   const handleSignUp = async () => {
     if (isLoading) return;
@@ -36,7 +45,7 @@ export default function Auth({ onLoginSuccess }) {
       console.log("Sign up response data:", data);
       if (response.ok) {
         Alert.alert("Success", data.message);
-        setIsLogin(true);
+        if (isMounted.current) setIsLogin(true);
       } else {
         Alert.alert("Error", data.message);
       }
@@ -44,7 +53,7 @@ export default function Auth({ onLoginSuccess }) {
       console.error("Sign up error:", error);
       Alert.alert("Connection Error", "Could not connect to the server.");
     } finally {
-      setIsLoading(false);
+      if (isMounted.current) setIsLoading(false);
     }
   };
 
@@ -62,6 +71,9 @@ export default function Auth({ onLoginSuccess }) {
       const data = await response.json();
       console.log("Login response data:", data);
       if (response.ok && data.token) {
+        // Store token in AsyncStorage for API calls
+        await AsyncStorage.setItem('userToken', String(data.token));
+        console.log("Login successful, calling onLoginSuccess");
         onLoginSuccess({ ...data.user, token: data.token });
       } else {
         Alert.alert("Login Failed", data.message || "An error occurred.");
@@ -70,7 +82,7 @@ export default function Auth({ onLoginSuccess }) {
       console.error("Login error:", error);
       Alert.alert("Connection Error", "Could not connect to the server.");
     } finally {
-      setIsLoading(false);
+      if (isMounted.current) setIsLoading(false);
     }
   };
 

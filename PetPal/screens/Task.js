@@ -9,7 +9,7 @@ import {
   ActivityIndicator,
 } from "react-native";
 
-import { TASKS_API_URL } from "../config";
+import { TASKS_API_URL, PETS_API_URL } from "../config";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 const TasksScreen = () => {
@@ -18,22 +18,56 @@ const TasksScreen = () => {
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    const fetchTasks = async () => {
+    const fetchData = async () => {
       try {
         const userToken = await AsyncStorage.getItem("userToken");
-        const response = await fetch(TASKS_API_URL, {
+        
+        // Fetch Tasks
+        const tasksResponse = await fetch(TASKS_API_URL, {
           headers: { Authorization: `Bearer ${userToken}` },
         });
-        if (!response.ok) throw new Error("Failed to fetch tasks");
-        const data = await response.json();
-        setTasks(data.tasks || data);
+        
+        if (!tasksResponse.ok) {
+           const errorData = await tasksResponse.json();
+           throw new Error(errorData.error || "Failed to fetch tasks");
+        }
+        const tasksData = await tasksResponse.json();
+        const tasksArr = tasksData.tasks || tasksData;
+
+        // Fetch Pets
+        const petsResponse = await fetch(PETS_API_URL, {
+          headers: { Authorization: `Bearer ${userToken}` },
+        });
+        let petsMap = {};
+        if (petsResponse.ok) {
+          const petsData = await petsResponse.json();
+          const petsArr = Array.isArray(petsData) ? petsData : petsData.pets || [];
+          petsArr.forEach(pet => {
+            petsMap[pet.id] = pet;
+          });
+        }
+
+        // Merge Data
+        const mergedTasks = tasksArr.map(task => {
+          const pet = petsMap[task.petId] || {};
+          return {
+            ...task,
+            petName: pet.name || "Unknown Pet",
+            petPhoto: pet.image || null, // Assuming 'image' is the key from pet object
+            species: pet.breed || "Pet", // Assuming 'breed' or 'species'
+            title: task.type || "Task" // Map 'type' to 'title'
+          };
+        });
+
+        setTasks(mergedTasks);
       } catch (err) {
-        setError(err.message || "Error fetching tasks");
+        console.error("Error fetching data:", err);
+        setError(err.message || "Error fetching data");
       } finally {
         setLoading(false);
       }
     };
-    fetchTasks();
+    fetchData();
   }, []);
 
   const renderTaskItem = ({ item }) => (
@@ -42,7 +76,13 @@ const TasksScreen = () => {
       <View style={styles.cardContent}>
         <View style={styles.taskHeaderRow}>
           <Text style={styles.taskTitle}>{item.title}</Text>
-          <Image source={{ uri: item.petPhoto }} style={styles.avatar} />
+          {item.petPhoto && typeof item.petPhoto === 'string' && item.petPhoto.trim() !== '' ? (
+            <Image source={{ uri: item.petPhoto }} style={styles.avatar} />
+          ) : (
+            <View style={[styles.avatar, { justifyContent: 'center', alignItems: 'center', backgroundColor: '#E5E7EB' }]}>
+               <Text style={{ fontSize: 18 }}>🐾</Text>
+            </View>
+          )}
         </View>
 
         <Text style={styles.petText}>
@@ -50,9 +90,17 @@ const TasksScreen = () => {
         </Text>
 
         <View style={styles.timeRow}>
-          <Text style={styles.dateText}>{item.dueDate}</Text>
+          <Text style={styles.dateText}>
+            {item.dueDate && item.dueDate._seconds
+              ? new Date(item.dueDate._seconds * 1000).toLocaleDateString()
+              : new Date(item.dueDate).toLocaleDateString()}
+          </Text>
           <Text style={styles.dot}>•</Text>
-          <Text style={styles.timeText}>{item.dueTime}</Text>
+          <Text style={styles.timeText}>
+            {item.dueDate && item.dueDate._seconds
+              ? new Date(item.dueDate._seconds * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+              : new Date(item.dueDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+          </Text>
         </View>
 
         {item.notes ? (

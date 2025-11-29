@@ -7,67 +7,89 @@ import {
   Image,
   TouchableOpacity,
   ActivityIndicator,
+  Modal,
+  ScrollView,
 } from "react-native";
 
 import { PETS_API_URL, TASKS_API_URL } from "../config";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import AddTask from "../Components/AddTask";
+import AddPet from "../Components/Addpet";
 
 const HomeScreen = () => {
   const [pets, setPets] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [showAddPetModal, setShowAddPetModal] = useState(false);
+  const [showAddTaskModal, setShowAddTaskModal] = useState(false);
+  const [selectedPetForTask, setSelectedPetForTask] = useState(null);
 
-  useEffect(() => {
-    const fetchPetsAndTasks = async () => {
+
+  const fetchPetsAndTasks = async () => {
+    try {
+      const userToken = await AsyncStorage.getItem("userToken");
+      if (!userToken) {
+        throw new Error("No user token found");
+      }
+      // Fetch pets
+      const petsRes = await fetch(PETS_API_URL, {
+        headers: { Authorization: `Bearer ${userToken}` },
+      });
+      if (!petsRes.ok) throw new Error("Failed to fetch pets");
+      const petsData = await petsRes.json();
+      console.log("Fetched pets data:", JSON.stringify(petsData, null, 2));
+      const petsArr = Array.isArray(petsData)
+        ? petsData
+        : petsData.pets || [];
+
+      // Fetch upcoming tasks
+      let tasksArr = [];
       try {
-        const userToken = await AsyncStorage.getItem("userToken");
-        // Fetch pets
-        const petsRes = await fetch(PETS_API_URL, {
-          headers: { Authorization: `Bearer ${userToken}` },
-        });
-        if (!petsRes.ok) throw new Error("Failed to fetch pets");
-        const petsData = await petsRes.json();
-        const petsArr = Array.isArray(petsData)
-          ? petsData
-          : petsData.pets || [];
-
-        // Fetch upcoming tasks
         const tasksRes = await fetch(TASKS_API_URL, {
           headers: { Authorization: `Bearer ${userToken}` },
         });
-        if (!tasksRes.ok) throw new Error("Failed to fetch tasks");
-        const tasksData = await tasksRes.json();
-        const tasksArr = Array.isArray(tasksData)
-          ? tasksData
-          : tasksData.tasks || [];
-
-        // Group tasks by petId
-        const tasksByPet = {};
-        tasksArr.forEach((task) => {
-          if (!tasksByPet[task.petId]) tasksByPet[task.petId] = [];
-          tasksByPet[task.petId].push(task);
-        });
-
-        // Attach upcomingTasks to each pet (sorted by dueDate)
-        const petsWithTasks = petsArr.map((pet) => ({
-          ...pet,
-          upcomingTasks: (tasksByPet[pet.id] || []).sort((a, b) => {
-            const aDate = a.dueDate?._seconds
-              ? a.dueDate._seconds
-              : new Date(a.dueDate).getTime() / 1000;
-            const bDate = b.dueDate?._seconds
-              ? b.dueDate._seconds
-              : new Date(b.dueDate).getTime() / 1000;
-            return aDate - bDate;
-          }),
-        }));
-        setPets(petsWithTasks);
-      } catch (err) {
-        setError(err.message || "Error fetching pets or tasks");
-      } finally {
-        setLoading(false);
+        if (tasksRes.ok) {
+          const tasksData = await tasksRes.json();
+          tasksArr = Array.isArray(tasksData)
+            ? tasksData
+            : tasksData.tasks || [];
+        } else {
+          console.warn("Failed to fetch tasks, status:", tasksRes.status);
+        }
+      } catch (taskErr) {
+        console.warn("Error fetching tasks:", taskErr);
       }
-    };
+
+      // Group tasks by petId
+      const tasksByPet = {};
+      tasksArr.forEach((task) => {
+        if (!tasksByPet[task.petId]) tasksByPet[task.petId] = [];
+        tasksByPet[task.petId].push(task);
+      });
+
+      // Attach upcomingTasks to each pet (sorted by dueDate)
+      const petsWithTasks = petsArr.map((pet) => ({
+        ...pet,
+        upcomingTasks: (tasksByPet[pet.id] || []).sort((a, b) => {
+          const aDate = a.dueDate?._seconds
+            ? a.dueDate._seconds
+            : new Date(a.dueDate).getTime() / 1000;
+          const bDate = b.dueDate?._seconds
+            ? b.dueDate._seconds
+            : new Date(b.dueDate).getTime() / 1000;
+          return aDate - bDate;
+        }),
+      }));
+      setPets(petsWithTasks);
+    } catch (err) {
+      setError(err.message || "Error fetching pets");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    console.log("Home screen mounted");
     fetchPetsAndTasks();
   }, []);
 
@@ -126,7 +148,13 @@ const HomeScreen = () => {
           <TouchableOpacity style={styles.secondaryButton}>
             <Text style={styles.secondaryButtonText}>View Log</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.primaryButton}>
+          <TouchableOpacity 
+            style={styles.primaryButton}
+            onPress={() => {
+              setSelectedPetForTask(item.id);
+              setShowAddTaskModal(true);
+            }}
+          >
             <Text style={styles.primaryButtonText}>Add Task</Text>
           </TouchableOpacity>
         </View>
@@ -141,7 +169,10 @@ const HomeScreen = () => {
           <Text style={styles.greeting}>Welcome back 👋</Text>
           <Text style={styles.title}>Your Pets</Text>
         </View>
-        <TouchableOpacity style={styles.addPetButton}>
+        <TouchableOpacity 
+          style={styles.addPetButton}
+          onPress={() => setShowAddPetModal(true)}
+        >
           <Text style={styles.addPetText}>+ Add Pet</Text>
         </TouchableOpacity>
       </View>
@@ -164,6 +195,60 @@ const HomeScreen = () => {
           showsVerticalScrollIndicator={false}
         />
       )}
+
+      {/* Add Pet Modal */}
+      <Modal
+        visible={showAddPetModal}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setShowAddPetModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContainer}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Add New Pet</Text>
+              <TouchableOpacity onPress={() => setShowAddPetModal(false)}>
+                <Text style={styles.closeButton}>✕</Text>
+              </TouchableOpacity>
+            </View>
+            <ScrollView style={styles.modalContent}>
+              <AddPet
+                onPetAdded={(newPet) => {
+                  setShowAddPetModal(false);
+                  fetchPetsAndTasks();
+                }}
+              />
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Add Task Modal */}
+      <Modal
+        visible={showAddTaskModal}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setShowAddTaskModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContainer}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Add New Task</Text>
+              <TouchableOpacity onPress={() => setShowAddTaskModal(false)}>
+                <Text style={styles.closeButton}>✕</Text>
+              </TouchableOpacity>
+            </View>
+            <ScrollView style={styles.modalContent}>
+              <AddTask
+                onTaskAdded={(newTask) => {
+                  setShowAddTaskModal(false);
+                  fetchPetsAndTasks();
+                }}
+              />
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 };
@@ -318,5 +403,38 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "500",
     color: "#111827",
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    justifyContent: "flex-end",
+  },
+  modalContainer: {
+    backgroundColor: "#FFFFFF",
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    maxHeight: "90%",
+    paddingBottom: 20,
+  },
+  modalHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: "#E5E7EB",
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: "700",
+    color: "#111827",
+  },
+  closeButton: {
+    fontSize: 28,
+    color: "#6B7280",
+    fontWeight: "300",
+  },
+  modalContent: {
+    maxHeight: "100%",
   },
 });
