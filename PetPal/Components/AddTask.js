@@ -9,15 +9,16 @@ import {
   StyleSheet,
   Platform,
   Alert,
+  Modal,
 } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { Picker } from '@react-native-picker/picker';
 
-export default function AddTask({ onTaskAdded }) {
+export default function AddTask({ onTaskAdded, initialPetId }) {
 
 
   const [title, setTitle] = useState('');
-  const [selectedPet, setSelectedPet] = useState('');
+  const [selectedPet, setSelectedPet] = useState(initialPetId || '');
   const [date, setDate] = useState(new Date());
   const [notes, setNotes] = useState('');
   const [showDatePicker, setShowDatePicker] = useState(false);
@@ -33,17 +34,26 @@ export default function AddTask({ onTaskAdded }) {
         const data = await res.json();
         if (res.ok && Array.isArray(data.pets)) {
           setPets(data.pets);
-          setSelectedPet(data.pets[0]?.id || '');
+          // If initialPetId is provided, use it. Otherwise, default to first pet.
+          // Also check if initialPetId exists in the fetched pets to avoid invalid selection.
+          if (initialPetId) {
+            setSelectedPet(initialPetId);
+          } else if (data.pets.length > 0) {
+            setSelectedPet(data.pets[0].id);
+          }
         }
-      } catch {}
+      } catch { }
     };
     fetchPets();
-  }, []);
+  }, [initialPetId]);
 
   const handleDateChange = (event, selectedDate) => {
-    const currentDate = selectedDate || date;
-    setShowDatePicker(Platform.OS === 'ios');
-    setDate(currentDate);
+    if (Platform.OS === 'android') {
+      setShowDatePicker(false);
+    }
+    if (selectedDate) {
+      setDate(selectedDate);
+    }
   };
 
   const handleSubmit = async () => {
@@ -108,15 +118,47 @@ export default function AddTask({ onTaskAdded }) {
       <TouchableOpacity onPress={() => setShowDatePicker(true)}>
         <Text style={styles.dateText}>{date.toLocaleDateString()}</Text>
       </TouchableOpacity>
-      {showDatePicker && (
-        <DateTimePicker
-          testID="dateTimePicker"
-          value={date}
-          mode="date"
-          is24Hour={true}
-          display="default"
-          onChange={handleDateChange}
-        />
+
+      {Platform.OS === 'ios' ? (
+        <Modal
+          transparent={true}
+          animationType="slide"
+          visible={showDatePicker}
+          onRequestClose={() => setShowDatePicker(false)}
+        >
+          <View style={styles.modalContainer}>
+            <View style={styles.pickerWrapper}>
+              <View style={styles.pickerHeader}>
+                <TouchableOpacity onPress={() => setShowDatePicker(false)}>
+                  <Text style={styles.doneText}>Done</Text>
+                </TouchableOpacity>
+              </View>
+              <View style={{ alignItems: 'center' }}>
+                <DateTimePicker
+                  testID="dateTimePicker"
+                  value={date}
+                  mode="date"
+                  display="spinner"
+                  onChange={handleDateChange}
+                  maximumDate={new Date(2030, 11, 31)}
+                  textColor="black"
+                  style={{ width: 320, height: 215 }}
+                />
+              </View>
+            </View>
+          </View>
+        </Modal>
+      ) : (
+        showDatePicker && (
+          <DateTimePicker
+            testID="dateTimePicker"
+            value={date}
+            mode="date"
+            is24Hour={true}
+            display="default"
+            onChange={handleDateChange}
+          />
+        )
       )}
 
       <Text style={styles.label}>Notes</Text>
@@ -189,5 +231,28 @@ const styles = StyleSheet.create({
     color: 'white',
     fontSize: 18,
     fontWeight: 'bold',
+  },
+  modalContainer: {
+    flex: 1,
+    justifyContent: 'flex-end',
+    backgroundColor: 'rgba(0,0,0,0.5)',
+  },
+  pickerWrapper: {
+    backgroundColor: 'white',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingBottom: 20,
+  },
+  pickerHeader: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+  },
+  doneText: {
+    color: '#2563EB',
+    fontSize: 16,
+    fontWeight: '600',
   },
 });

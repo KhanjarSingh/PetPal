@@ -148,7 +148,7 @@ const HomeScreen = () => {
           <TouchableOpacity style={styles.secondaryButton}>
             <Text style={styles.secondaryButtonText}>View Log</Text>
           </TouchableOpacity>
-          <TouchableOpacity 
+          <TouchableOpacity
             style={styles.primaryButton}
             onPress={() => {
               setSelectedPetForTask(item.id);
@@ -169,12 +169,23 @@ const HomeScreen = () => {
           <Text style={styles.greeting}>Welcome back 👋</Text>
           <Text style={styles.title}>Your Pets</Text>
         </View>
-        <TouchableOpacity 
-          style={styles.addPetButton}
-          onPress={() => setShowAddPetModal(true)}
-        >
-          <Text style={styles.addPetText}>+ Add Pet</Text>
-        </TouchableOpacity>
+        <View style={styles.headerActions}>
+          <TouchableOpacity
+            style={styles.addTaskButton}
+            onPress={() => {
+              setSelectedPetForTask(null);
+              setShowAddTaskModal(true);
+            }}
+          >
+            <Text style={styles.addTaskText}>+ Task</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.addPetButton}
+            onPress={() => setShowAddPetModal(true)}
+          >
+            <Text style={styles.addPetText}>+ Pet</Text>
+          </TouchableOpacity>
+        </View>
       </View>
       {loading ? (
         <ActivityIndicator
@@ -240,6 +251,7 @@ const HomeScreen = () => {
             </View>
             <ScrollView style={styles.modalContent}>
               <AddTask
+                initialPetId={selectedPetForTask}
                 onTaskAdded={(newTask) => {
                   setShowAddTaskModal(false);
                   fetchPetsAndTasks();
@@ -278,6 +290,10 @@ const styles = StyleSheet.create({
     color: "#111827",
     marginTop: 2,
   },
+  headerActions: {
+    flexDirection: 'row',
+    gap: 8,
+  },
   addPetButton: {
     paddingHorizontal: 12,
     paddingVertical: 6,
@@ -290,6 +306,17 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "600",
     color: "#111827",
+  },
+  addTaskButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: "#4F46E5",
+  },
+  addTaskText: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#FFFFFF",
   },
   listContent: {
     paddingBottom: 24,
