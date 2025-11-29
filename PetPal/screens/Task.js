@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import {
   View,
   Text,
@@ -7,68 +7,134 @@ import {
   Image,
   TouchableOpacity,
   ActivityIndicator,
+  Modal,
+  ScrollView,
+  RefreshControl
 } from "react-native";
 
-import { TASKS_API_URL, PETS_API_URL } from "../config";
+import { TASKS_API_URL, PETS_API_URL, BASE_URL } from "../config";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 const TasksScreen = () => {
   const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(null);
+  const [processingTaskId, setProcessingTaskId] = useState(null);
+  const [selectedTask, setSelectedTask] = useState(null);
+
+  const fetchData = useCallback(async () => {
+    try {
+      setError(null);
+      const userToken = await AsyncStorage.getItem("userToken");
+      
+      // Fetch Tasks
+      const tasksResponse = await fetch(TASKS_API_URL, {
+        headers: { Authorization: `Bearer ${userToken}` },
+      });
+      
+      if (!tasksResponse.ok) {
+         const errorData = await tasksResponse.json();
+         throw new Error(errorData.error || "Failed to fetch tasks");
+      }
+      const tasksData = await tasksResponse.json();
+      const rawTasks = tasksData.tasks || tasksData;
+      console.log("Raw tasks count:", rawTasks.length);
+      const tasksArr = rawTasks.filter(task => {
+        const isCompleted = task.isDone === true;
+        if (isCompleted) console.log("Filtering out completed task:", task.type || task.id);
+        return !isCompleted;
+      });
+      console.log("Filtered tasks count:", tasksArr.length);
+
+      // Fetch Pets
+      const petsResponse = await fetch(PETS_API_URL, {
+        headers: { Authorization: `Bearer ${userToken}` },
+      });
+      let petsMap = {};
+      if (petsResponse.ok) {
+        const petsData = await petsResponse.json();
+        const petsArr = Array.isArray(petsData) ? petsData : petsData.pets || [];
+        petsArr.forEach(pet => {
+          petsMap[pet.id] = pet;
+        });
+      }
+
+      // Merge Data
+      const mergedTasks = tasksArr.map(task => {
+        const pet = petsMap[task.petId] || {};
+        return {
+          ...task,
+          petName: pet.name || "Unknown Pet",
+          petPhoto: pet.photoUrl || null,
+          species: pet.breed || "Pet",
+          title: task.type || "Task"
+        };
+      });
+
+      console.log("Visible Tasks:", mergedTasks.map(t => ({ id: t.id, title: t.title, isDone: t.isDone, date: t.dueDate })));
+      setTasks(mergedTasks);
+    } catch (err) {
+      console.error("Error fetching data:", err);
+      setError(err.message || "Error fetching data");
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, []);
 
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const userToken = await AsyncStorage.getItem("userToken");
-        
-        // Fetch Tasks
-        const tasksResponse = await fetch(TASKS_API_URL, {
-          headers: { Authorization: `Bearer ${userToken}` },
-        });
-        
-        if (!tasksResponse.ok) {
-           const errorData = await tasksResponse.json();
-           throw new Error(errorData.error || "Failed to fetch tasks");
-        }
-        const tasksData = await tasksResponse.json();
-        const tasksArr = tasksData.tasks || tasksData;
-
-        // Fetch Pets
-        const petsResponse = await fetch(PETS_API_URL, {
-          headers: { Authorization: `Bearer ${userToken}` },
-        });
-        let petsMap = {};
-        if (petsResponse.ok) {
-          const petsData = await petsResponse.json();
-          const petsArr = Array.isArray(petsData) ? petsData : petsData.pets || [];
-          petsArr.forEach(pet => {
-            petsMap[pet.id] = pet;
-          });
-        }
-
-        // Merge Data
-        const mergedTasks = tasksArr.map(task => {
-          const pet = petsMap[task.petId] || {};
-          return {
-            ...task,
-            petName: pet.name || "Unknown Pet",
-            petPhoto: pet.image || null, // Assuming 'image' is the key from pet object
-            species: pet.breed || "Pet", // Assuming 'breed' or 'species'
-            title: task.type || "Task" // Map 'type' to 'title'
-          };
-        });
-
-        setTasks(mergedTasks);
-      } catch (err) {
-        console.error("Error fetching data:", err);
-        setError(err.message || "Error fetching data");
-      } finally {
-        setLoading(false);
-      }
-    };
     fetchData();
-  }, []);
+  }, [fetchData]);
+
+  const onRefresh = () => {
+    setRefreshing(true);
+    fetchData();
+  };
+
+  const showTaskDetails = (task) => {
+    setSelectedTask(task);
+  };
+
+  const handleMarkDone = async (task) => {
+    const taskId = task.id;
+    try {
+      setProcessingTaskId(taskId);
+      const userToken = await AsyncStorage.getItem("userToken");
+      
+      // Use BASE_URL to construct the correct endpoint: /api/tasks/:id/complete
+      const response = await fetch(`${BASE_URL}/tasks/${taskId}/complete`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${userToken}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to mark task as done");
+      }
+
+      // Optimistically remove the task immediately
+      setTasks(prevTasks => prevTasks.filter(t => t.id !== taskId));
+      
+      const isRecurring = task.recurring && task.recurring.type !== 'none';
+      if (isRecurring) {
+        alert("Task done! Next occurrence scheduled.");
+      } else {
+        alert("Task marked as done!");
+      }
+
+      // Refresh data to get updates (including new recurring tasks)
+      await fetchData();
+    } catch (err) {
+      console.error("Error marking task as done:", err);
+      alert(err.message || "Failed to mark task as done");
+    } finally {
+      setProcessingTaskId(null);
+    }
+  };
 
   const renderTaskItem = ({ item }) => (
     <View style={styles.card}>
@@ -76,7 +142,7 @@ const TasksScreen = () => {
       <View style={styles.cardContent}>
         <View style={styles.taskHeaderRow}>
           <Text style={styles.taskTitle}>{item.title}</Text>
-          {item.petPhoto && typeof item.petPhoto === 'string' && item.petPhoto.trim() !== '' ? (
+          {item.petPhoto ? (
             <Image source={{ uri: item.petPhoto }} style={styles.avatar} />
           ) : (
             <View style={[styles.avatar, { justifyContent: 'center', alignItems: 'center', backgroundColor: '#E5E7EB' }]}>
@@ -110,11 +176,24 @@ const TasksScreen = () => {
         ) : null}
 
         <View style={styles.actionsRow}>
-          <TouchableOpacity style={styles.secondaryButton}>
+          <TouchableOpacity 
+            style={styles.secondaryButton}
+            onPress={() => showTaskDetails(item)}
+            disabled={processingTaskId === item.id}
+          >
             <Text style={styles.secondaryButtonText}>Details</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.primaryButton}>
-            <Text style={styles.primaryButtonText}>Mark Done</Text>
+          <TouchableOpacity 
+            style={[
+              styles.primaryButton,
+              processingTaskId === item.id && styles.primaryButtonDisabled
+            ]}
+            onPress={() => handleMarkDone(item)}
+            disabled={processingTaskId === item.id}
+          >
+            <Text style={styles.primaryButtonText}>
+              {processingTaskId === item.id ? "Processing..." : "Mark Done"}
+            </Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -147,8 +226,61 @@ const TasksScreen = () => {
           renderItem={renderTaskItem}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+          }
         />
       )}
+
+      <Modal
+        visible={!!selectedTask}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setSelectedTask(null)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContainer}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Task Details</Text>
+              <TouchableOpacity onPress={() => setSelectedTask(null)}>
+                <Text style={styles.closeButton}>✕</Text>
+              </TouchableOpacity>
+            </View>
+            <ScrollView style={styles.modalContent}>
+              {selectedTask && (
+                <>
+                  <Text style={styles.detailLabel}>Task</Text>
+                  <Text style={styles.detailValue}>{selectedTask.title}</Text>
+                  
+                  <Text style={styles.detailLabel}>Pet</Text>
+                  <View style={styles.petDetailRow}>
+                    {selectedTask.petPhoto && typeof selectedTask.petPhoto === 'string' && selectedTask.petPhoto.trim() !== '' ? (
+                      <Image source={{ uri: selectedTask.petPhoto }} style={styles.detailAvatar} />
+                    ) : (
+                      <View style={[styles.detailAvatar, { justifyContent: 'center', alignItems: 'center', backgroundColor: '#E5E7EB' }]}>
+                         <Text style={{ fontSize: 18 }}>🐾</Text>
+                      </View>
+                    )}
+                    <Text style={styles.detailValue}>{selectedTask.petName} ({selectedTask.species})</Text>
+                  </View>
+
+                  <Text style={styles.detailLabel}>Due Date</Text>
+                  <Text style={styles.detailValue}>
+                    {selectedTask.dueDate && selectedTask.dueDate._seconds
+                      ? new Date(selectedTask.dueDate._seconds * 1000).toLocaleString()
+                      : new Date(selectedTask.dueDate).toLocaleString()}
+                  </Text>
+
+                  <Text style={styles.detailLabel}>Notes</Text>
+                  <Text style={styles.detailValue}>
+                    {selectedTask.notes || "No additional notes"}
+                  </Text>
+                </>
+              )}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 };
@@ -257,6 +389,10 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     backgroundColor: "#4F46E5",
   },
+  primaryButtonDisabled: {
+    backgroundColor: "#9CA3AF",
+    opacity: 0.6,
+  },
   primaryButtonText: {
     fontSize: 13,
     fontWeight: "600",
@@ -274,5 +410,63 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "500",
     color: "#111827",
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    justifyContent: "flex-end",
+  },
+  modalContainer: {
+    backgroundColor: "#FFFFFF",
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    maxHeight: "80%",
+    paddingBottom: 30,
+  },
+  modalHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: "#E5E7EB",
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: "#111827",
+  },
+  closeButton: {
+    fontSize: 24,
+    color: "#6B7280",
+    padding: 4,
+  },
+  modalContent: {
+    padding: 20,
+  },
+  detailLabel: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#6B7280",
+    textTransform: "uppercase",
+    marginBottom: 4,
+    marginTop: 12,
+  },
+  detailValue: {
+    fontSize: 16,
+    color: "#111827",
+    marginBottom: 8,
+  },
+  petDetailRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 8,
+  },
+  detailAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    marginRight: 12,
+    backgroundColor: "#E5E7EB",
   },
 });

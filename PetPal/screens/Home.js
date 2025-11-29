@@ -126,7 +126,13 @@ const HomeScreen = () => {
 
         {/* Content row: image + details */}
         <View style={styles.cardContent}>
-          <Image source={{ uri: item.photoUrl }} style={styles.petImage} />
+          {item.photoUrl ? (
+            <Image source={{ uri: item.photoUrl }} style={styles.petImage} />
+          ) : (
+            <View style={[styles.petImage, { justifyContent: 'center', alignItems: 'center' }]}>
+              <Text style={{ fontSize: 24 }}>🐾</Text>
+            </View>
+          )}
 
           <View style={styles.detailsContainer}>
             <Text style={styles.petName}>{item.name}</Text>
